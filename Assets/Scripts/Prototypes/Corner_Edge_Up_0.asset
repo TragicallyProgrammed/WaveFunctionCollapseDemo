@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa3ef765706bf4743ab858381eb30391, type: 3}
+  m_Name: Corner_Edge_Up_0
+  m_EditorClassIdentifier: 
+  description: Corner_Edge_Up_0
+  model: {fileID: 2369669763127876176, guid: 08c4d4448b5c9384db7cac913d3b1d03, type: 3}
+  weight: 1
+  rotation: 0
+  posX: 1
+  negX: -2
+  posZ: 1F
+  negZ: -2
+  posY: v1_0
+  negY: -2
+  posXNeighbors: []
+  negXNeighbors: []
+  posZNeighbors: []
+  negZNeighbors: []
+  posYNeighbors: []
+  negYNeighbors: []
