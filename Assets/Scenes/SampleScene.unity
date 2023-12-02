@@ -302,9 +302,9 @@ MonoBehaviour:
   GenerateNeighbors: 1
   PropagationDepth: -1
   RetryCount: 200
-  Width: 20
-  Depth: 20
-  Height: 20
+  Width: 7
+  Depth: 7
+  Height: 7
   Prototypes:
   - {fileID: 11400000, guid: 4cdff63ed8c90d348885e5064a7bd13e, type: 2}
   - {fileID: 11400000, guid: 55cd7babbe1ca7e4eb8594e3d6f1916b, type: 2}
