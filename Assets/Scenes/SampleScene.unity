@@ -298,13 +298,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f349ecd2d476d33449ee3fa12c44740d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GenerateWorld: 1
   GenerateNeighbors: 1
   PropagationDepth: -1
   RetryCount: 200
-  Width: 7
-  Depth: 7
-  Height: 7
+  Width: 10
+  Depth: 10
+  Height: 10
   Prototypes:
   - {fileID: 11400000, guid: 4cdff63ed8c90d348885e5064a7bd13e, type: 2}
   - {fileID: 11400000, guid: 55cd7babbe1ca7e4eb8594e3d6f1916b, type: 2}

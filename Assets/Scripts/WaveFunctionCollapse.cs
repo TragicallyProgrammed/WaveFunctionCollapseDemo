@@ -23,7 +23,7 @@ public static class WaveFunctionCollapse
 {
     private static readonly System.Random _rand = new();
 
-    public static void GenerateCollapse(ref Prototype[,,] generatedPrototypes, IEnumerable<Prototype> prototypes, int propagationDepth, int retryCount, int w, int d, int h)
+    public static Prototype[,,] GenerateRecursiveCollapse(IEnumerable<Prototype> prototypes, int propagationDepth, int retryCount, int w, int d, int h)
     {
         int count = 0;
         // Shuffle Prototypes
@@ -66,17 +66,6 @@ public static class WaveFunctionCollapse
             {
                 selectedCell.CollapseCell();
                 PropagateCollapse(ref cells, selectedCell, propagationDepth, w, d, h, 0);
-
-                for (int x = 0; x < w; x++)
-                {
-                    for (int z = 0; z < d; z++)
-                    {
-                        for (int y = 0; y < h; y++)
-                        {
-                            generatedPrototypes[x, z, y] = cells[x, z, y].CollapsedPrototype!;
-                        }
-                    }
-                }
             }
             catch (Exception e)
             {
@@ -88,6 +77,18 @@ public static class WaveFunctionCollapse
                 PropagateCollapse(ref cells, selectedCell, propagationDepth, w, d, h, 0);
             }
         }
+        Prototype[,,] generatedPrototypes = new Prototype[w, d, h];
+        for (int x = 0; x < w; x++)
+        {
+            for (int z = 0; z < d; z++)
+            {
+                for (int y = 0; y < h; y++)
+                {
+                    generatedPrototypes[x, z, y] = cells[x, z, y].CollapsedPrototype!;
+                }
+            }
+        }
+        return generatedPrototypes;
     }
 
     #region Propagation
@@ -225,7 +226,7 @@ public static class WaveFunctionCollapse
             {
                 for (int y = 0; y < h - 1; y++)
                 {
-                    cells[x, z, y] = new Cell(prototypes.Where(proto => !proto.description.Contains("Vertical")), x, z, y);
+                    cells[x, z, y] = new Cell(prototypes, x, z, y);
                 }
             }
         }
