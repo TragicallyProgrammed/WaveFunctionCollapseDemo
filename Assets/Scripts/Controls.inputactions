@@ -6,7 +6,7 @@
             "id": "3b61ee11-b502-46bf-b4f8-6a4d1216f44a",
             "actions": [
                 {
-                    "name": "PressOnKeyboard",
+                    "name": "PressKeyboard",
                     "type": "Button",
                     "id": "03b4c21f-b191-443c-8c3d-83fde94747a0",
                     "expectedControlType": "Button",
@@ -23,7 +23,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "PressOnKeyboard",
+                    "action": "PressKeyboard",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

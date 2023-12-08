@@ -38,55 +38,54 @@ public class WorldManager : MonoBehaviour
     }
 
     #region generation methods
-    private async void GenerateTerrain()
+    public async void GenerateTerrain()
     {
         transform.position = new Vector3((float)Width / 2, (float)Height / 2, (float)Depth / 2);
         Prototype3D<Mesh>[,,] generatedPrototypes = new Prototype3D<Mesh>[Width, Depth, Height];
         await Task.Run(() =>
         {
             _generating = true;
-            generatedPrototypes = WaveFunctionCollapse<Mesh>.GenerateRecursiveCollapse3D(Prototypes, Width, Depth, Height, propagationDepth: PropagationDepth, retryCount: RetryCount, constrainCellsDelagate: (prototypes) =>
+            generatedPrototypes = WaveFunctionCollapse<Mesh>.GenerateRecursiveCollapse3D(Prototypes, Width, Depth, Height, propagationDepth: PropagationDepth, retryCount: RetryCount, constrainCellsDelegate: (cells, w, d, h) =>
             {
-                WaveFunctionCollapse<Mesh>.Cell[,,] cells = new WaveFunctionCollapse<Mesh>.Cell[Width, Depth, Height];
-                for (int x = 1; x < Width - 1; x++)
+                for (int x = 1; x < w - 1; x++)
                 {
-                    for (int z = 1; z < Depth - 1; z++)
+                    for (int z = 1; z < d - 1; z++)
                     {
-                        for (int y = 0; y < Height - 1; y++)
+                        for (int y = 0; y < h - 1; y++)
                         {
-                            cells[x, z, y] = new (prototypes.Where(proto => !proto.description.Contains("Vertical")), x, z, y);
+                            cells[x, z, y].RemoveProbabilities(cells[x, z, y].ProbablePrototypes.Where(proto => proto.description.Contains("Vertical")).ToList());
                         }
                     }
                 }
 
                 // top cells
-                for (int x = 1; x < Width - 1; x++)
+                for (int x = 1; x < w - 1; x++)
                 {
-                    for (int z = 1; z < Depth - 1; z++)
+                    for (int z = 1; z < d - 1; z++)
                     {
-                        cells[x, z, Height - 1] = new (prototypes.Where(proto => proto.posY.Equals("-1")), x, z, Height - 1);
+                        cells[x, z, h - 1].RemoveProbabilities(cells[x, z, Height - 1].ProbablePrototypes.Where(proto => !proto.posY.Equals("-1")).ToList());
                     }
                 }
                 // side cells
-                for (int y = 0; y < Height; y++)
+                for (int y = 0; y < h; y++)
                 {
                     // z faces
-                    for (int x = 1; x < Width - 1; x++)
+                    for (int x = 1; x < w - 1; x++)
                     {
-                        cells[x, Depth - 1, y] = new (prototypes.Where(proto => proto.posZ.Equals("-1")), x, Depth - 1, y);
-                        cells[x, 0, y] = new (prototypes.Where(proto => proto.negZ.Equals("-1")), x, 0, y);
+                        cells[x, d - 1, y].RemoveProbabilities(cells[x, d - 1, y].ProbablePrototypes.Where(proto => !proto.posZ.Equals("-1")).ToList());
+                        cells[x, 0, y].RemoveProbabilities(cells[x, 0, y].ProbablePrototypes.Where(proto => !proto.negZ.Equals("-1")).ToList());
                     }
                     // x faces
                     for (int z = 1; z < Depth - 1; z++)
                     {
-                        cells[Width - 1, z, y] = new (prototypes.Where(proto => proto.posX.Equals("-1")), Width - 1, z, y);
-                        cells[0, z, y] = new (prototypes.Where(proto => proto.negX.Equals("-1")), 0, z, y);
+                        cells[w - 1, z, y].RemoveProbabilities(cells[w - 1, z, y].ProbablePrototypes.Where(proto => !proto.posX.Equals("-1")).ToList());
+                        cells[0, z, y].RemoveProbabilities(cells[0, z, y].ProbablePrototypes.Where(proto => !proto.negX.Equals("-1")).ToList());
                     }
                     // corners
-                    cells[Width - 1, Depth - 1, y] = new(prototypes.Where(proto => proto.posX.Equals("-1") && proto.posZ.Equals("-1")), Width - 1, Depth - 1, y);
-                    cells[Width - 1, 0, y] = new(prototypes.Where(proto => proto.posX.Equals("-1") && proto.negZ.Equals("-1")), Width - 1, 0, y);
-                    cells[0, 0, y] = new (prototypes.Where(proto => proto.negX.Equals("-1") && proto.negZ.Equals("-1")), 0, 0, y);
-                    cells[0, Depth - 1, y] = new (prototypes.Where(proto => proto.negX.Equals("-1") && proto.posZ.Equals("-1")), 0, Depth - 1, y);
+                    cells[Width - 1, Depth - 1, y].RemoveProbabilities(cells[Width - 1, Depth - 1, y].ProbablePrototypes.Where(proto => !(proto.posX.Equals("-1") && proto.posZ.Equals("-1"))).ToList());
+                    cells[Width - 1, 0, y].RemoveProbabilities(cells[Width - 1, 0, y].ProbablePrototypes.Where(proto => !(proto.posX.Equals("-1") && proto.negZ.Equals("-1"))).ToList());
+                    cells[0, 0, y].RemoveProbabilities(cells[0, 0, y].ProbablePrototypes.Where(proto => !(proto.negX.Equals("-1") && proto.negZ.Equals("-1"))).ToList());
+                    cells[0, Depth - 1, y].RemoveProbabilities(cells[0, Depth - 1, y].ProbablePrototypes.Where(proto => !(proto.negX.Equals("-1") && proto.posZ.Equals("-1"))).ToList());
                 }
                 return cells;
             });
@@ -115,14 +114,9 @@ public class WorldManager : MonoBehaviour
         }
         _meshFilter.sharedMesh = new Mesh();
         _meshFilter.sharedMesh.CombineMeshes(combineList);
+
         if (GenerationFinished != null)
             GenerationFinished();
-    }
-
-    public void RegenerateTerrain(int width, int height, int depth)
-    {
-        Width = width; Height = height; Depth = depth;
-        GenerateTerrain();
     }
     #endregion
 }

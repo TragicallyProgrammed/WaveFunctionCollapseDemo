@@ -33,29 +33,25 @@ public static class WaveFunctionCollapse<T>
      * <param name="h">Height of the volume that is being generated.</param>
      * <param name="propagationDepth">Maximum amount of propagations after a cell is selected and collapsed.</param>
      * <param name="retryCount">Maximum number of retries to find a valid configuration of prototypes.</param>
-     * <param name="constrainCellsDelagate">Allows for cells with specific constrains to be generated. Passes in the processed list of prototypes to generate cells with and expects a 3d array of cells to be returned.</param>
+     * <param name="constrainCellsDelegate">Allows for cells with specific constrains to be generated. Passes in the array of unconstrained cells and expects the newly constrained array of cells to be returned.</param>
      */
-    public static Prototype3D<T>[,,] GenerateRecursiveCollapse3D(IEnumerable<Prototype3D<T>> prototypes, int w, int d, int h, int propagationDepth = -1, int retryCount = -1, Func<IEnumerable<Prototype3D<T>>, Cell[,,]>? constrainCellsDelagate = null)
+    public static Prototype3D<T>[,,] GenerateRecursiveCollapse3D(IEnumerable<Prototype3D<T>> prototypes, int w, int d, int h, int propagationDepth = -1, int retryCount = -1, Func<Cell[,,], int, int, int, Cell[,,]>? constrainCellsDelegate = null)
     {
         prototypes = CalculatePrototypeNeighbors(prototypes);
 
         int count = 0;
 
-        Cell[,,] cells;
-        if (constrainCellsDelagate == null)
+        Cell[,,] cells = AllocateCells(prototypes, w, d, h);
+        if (constrainCellsDelegate != null)
         {
-            cells = AllocateCells(prototypes, w, d, h);
-        }
-        else
-        {
-            cells = constrainCellsDelagate(prototypes);
+            cells = constrainCellsDelegate(cells, w, d, h);
         }
 
         while (!IsFinished(cells, w, d, h))
         {
             if (retryCount != -1 && count >= retryCount) 
             {
-                throw new Exception(String.Format("Retry Count Exceeded! Total number of retries: {0}", count));
+                throw new Exception(string.Format("Retry Count Exceeded! Total number of retries: {0}", count));
             }
 
             // Randomly select cell to collapse
@@ -85,13 +81,10 @@ public static class WaveFunctionCollapse<T>
             {
                 count++;
                 Debug.LogError(e.Message);
-                if (constrainCellsDelagate == null)
+                cells = AllocateCells(prototypes, w, d, h);
+                if (constrainCellsDelegate != null)
                 {
-                    cells = AllocateCells(prototypes, w, d, h);
-                }
-                else
-                {
-                    cells = constrainCellsDelagate(prototypes);
+                    cells = constrainCellsDelegate(cells, w, d, h);
                 }
             }
         }
@@ -350,7 +343,6 @@ public static class WaveFunctionCollapse<T>
         private readonly HashSet<Prototype3D<T>> _negZNeighbors = new();
         private readonly HashSet<Prototype3D<T>> _posYNeighbors = new();
         private readonly HashSet<Prototype3D<T>> _negYNeighbors = new();
-        private Prototype3D<T>? _collapsedPrototype;
         private double _entropy;
 
         public IEnumerable<Prototype3D<T>> ProbablePrototypes { get { return _probablePrototypes; } }
@@ -360,7 +352,7 @@ public static class WaveFunctionCollapse<T>
         public IEnumerable<Prototype3D<T>> NegZNeighbors { get { return _negZNeighbors; } }
         public IEnumerable<Prototype3D<T>> PosYNeighbors { get { return _posYNeighbors; } }
         public IEnumerable<Prototype3D<T>> NegYNeighbors { get { return _negYNeighbors; } }
-        public Prototype3D<T>? CollapsedPrototype { get { return _collapsedPrototype; } }
+        public Prototype3D<T>? CollapsedPrototype { get { if (_entropy == 0) return _probablePrototypes.ElementAt(0); return null; } }
         public double Entropy { get { return _entropy; } }
         public readonly int x, z, y;
 
@@ -378,26 +370,30 @@ public static class WaveFunctionCollapse<T>
 
         public bool RemoveProbabilities(IEnumerable<Prototype3D<T>> prototypes)
         {
+            HashSet<Prototype3D<T>> currentPrototypes = _probablePrototypes;
+            currentPrototypes.ExceptWith(prototypes);
+            if (currentPrototypes.Count == 0)
+            {
+                throw new InvalidCellException(string.Format("Invalid Cell At Position: x:{0} z:{1} y:{2}", x, z, y));
+            }
             _probablePrototypes.ExceptWith(prototypes);
+            /*
+            if (_probablePrototypes.Count == 0)
+            {
+                throw new InvalidCellException(string.Format("Invalid Cell At Position: x:{0} z:{1} y:{2}", x, z, y));
+            }
+            */
+            RecalculateEntropy();
+            RecalculateNeighbors();
             if (_probablePrototypes.Count() == 1)
             {
-                CollapseCell();
                 return true;
-            }
-            else
-            {
-                RecalculateEntropy();
-                RecalculateNeighbors();
             }
             return false;
         }
 
         public void CollapseCell()
         {
-            if (_probablePrototypes.Count == 0)
-            {
-                throw new InvalidCellException(String.Format("Invalid Cell At Position: x:{0} z:{1} y:{2}", x, z, y));
-            }
             if (_probablePrototypes.Count > 1)
             {
                 int totalWeight = _probablePrototypes.Sum(prototype => prototype.weight);
@@ -408,35 +404,21 @@ public static class WaveFunctionCollapse<T>
                     processedWeight += prototype.weight;
                     if (randWeightVal <= processedWeight)
                     {
-                        CollapseCell(prototype);
-                        return;
+                        _probablePrototypes.Clear();
+                        _probablePrototypes.Add(prototype);
+                        break;
                     }
                 }
             }
-            CollapseCell(_probablePrototypes.ElementAt(0));
-        }
-
-        public Prototype3D<T> CollapseCell(Prototype3D<T> prototype)
-        {
-            _collapsedPrototype = prototype;
-            _probablePrototypes.Clear();
             RecalculateEntropy();
-            SetNeighbors(prototype);
-            return prototype;
+            RecalculateNeighbors();
         }
 
         private void RecalculateEntropy()
         {
-            if (_probablePrototypes.Count == 0)
-            {
-                _entropy = 0;
-            }
-            else
-            {
-                // Based on Shannon Entropy For Square from this article: https://robertheaton.com/2018/12/17/wavefunction-collapse-algorithm/
-                int totalWeight = _probablePrototypes.Sum(prototype => prototype.weight);
-                _entropy = Math.Log(totalWeight) - (_probablePrototypes.Sum(prototype => prototype.weight * Math.Log(prototype.weight)) / totalWeight);
-            }
+            // Based on Shannon Entropy For Square from this article: https://robertheaton.com/2018/12/17/wavefunction-collapse-algorithm/
+            int totalWeight = _probablePrototypes.Sum(prototype => prototype.weight);
+            _entropy = Math.Log(totalWeight) - (_probablePrototypes.Sum(prototype => prototype.weight * Math.Log(prototype.weight)) / totalWeight);
         }
 
         private void RecalculateNeighbors()
@@ -456,22 +438,6 @@ public static class WaveFunctionCollapse<T>
                 foreach (Prototype3D<T> neighbor in prototype.posYNeighbors) { _posYNeighbors.Add(neighbor); }
                 foreach (Prototype3D<T> neighbor in prototype.negYNeighbors) { _negYNeighbors.Add(neighbor); }
             }
-        }
-
-        private void SetNeighbors(Prototype3D<T> prototype)
-        {
-            _posXNeighbors.Clear();
-            _negXNeighbors.Clear();
-            _posZNeighbors.Clear();
-            _negZNeighbors.Clear();
-            _posYNeighbors.Clear();
-            _negYNeighbors.Clear();
-            foreach (Prototype3D<T> neighbor in prototype.posXNeighbors) { _posXNeighbors.Add(neighbor); }
-            foreach (Prototype3D<T> neighbor in prototype.negXNeighbors) { _negXNeighbors.Add(neighbor); }
-            foreach (Prototype3D<T> neighbor in prototype.posZNeighbors) { _posZNeighbors.Add(neighbor); }
-            foreach (Prototype3D<T> neighbor in prototype.negZNeighbors) { _negZNeighbors.Add(neighbor); }
-            foreach (Prototype3D<T> neighbor in prototype.posYNeighbors) { _posYNeighbors.Add(neighbor); }
-            foreach (Prototype3D<T> neighbor in prototype.negYNeighbors) { _negYNeighbors.Add(neighbor); }
         }
     }
     #endregion
