@@ -9,12 +9,12 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: aa3ef765706bf4743ab858381eb30391, type: 3}
+  m_Script: {fileID: 11500000, guid: 14bcacd7d5fc4994da1b3de2b1718da4, type: 3}
   m_Name: Flat
   m_EditorClassIdentifier: 
   description: Flat
-  model: {fileID: 4696643130194549948, guid: d63ca1efc08f17b42abb2f44268e3565, type: 3}
-  weight: 1
+  tile: {fileID: 4696643130194549948, guid: d63ca1efc08f17b42abb2f44268e3565, type: 3}
+  weight: 20
   rotation: 0
   posX: 0S
   negX: 0S
@@ -22,9 +22,3 @@ MonoBehaviour:
   negZ: 0S
   posY: -1
   negY: -2
-  posXNeighbors: []
-  negXNeighbors: []
-  posZNeighbors: []
-  negZNeighbors: []
-  posYNeighbors: []
-  negYNeighbors: []

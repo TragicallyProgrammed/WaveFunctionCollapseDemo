@@ -1,17 +1,3 @@
-/**
-* This file will be responsible for implementing
-* the Wave Function Collapse Algorithm.
-* Because the algorithm doesn't store any
-* data, it will be implemented with static
-* functions.
-* 
-* This implementation of the Wave Function
-* Collapse Algorithm is based off of the 
-* explanation of the algorithm by 
-* Martin Donald in this video: https://www.youtube.com/watch?v=2SuvO4Gi7uY&t=565s
-* 
-* @author Garrett Bowers
-*/
 #nullable enable
 
 using System;
@@ -19,33 +5,61 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-public static class WaveFunctionCollapse
+/**
+ * <summary>
+ * This static class exists as a container for the functions that execute the wave function collapse algorithm
+ * and the Cell class that is used as a container for probable prototypes at any given position.
+ * 
+ * The Algorithm is as follows:
+ * <list type="number">
+ * <item>A 3d array of cells, which contains a list of prototypes that they can 'collapse' to is instantiated.</item>
+ * <item>The lowest entropy cell, or a random cell if all entropy values are equal, is selected to be collapsed to a random prototype.</item>
+ * <item>The collapse is propagated through the array by starting at the cell that has collapsed, and trimming down all it's neighbor's probable prototypes to only contain prototypes that are valid neighbors in that direction for the selected cell. Each cell changed like this is then propagated to.</item>
+ * <item>Once all cells that should have their probabilities trimmed down, the process is repeated until all cells have collapsed into a prototype.</item>
+ * </list>
+ * </summary>
+ */
+public static class WaveFunctionCollapse<T>
 {
     private static readonly System.Random _rand = new();
 
-    public static Prototype[,,] GenerateRecursiveCollapse(IEnumerable<Prototype> prototypes, int propagationDepth, int retryCount, int w, int d, int h)
+    /**
+     * <summary>
+     * Executes the wave function collapse algorithm with recursive propagation.
+     * </summary>
+     * <param name="prototypes">List of prototypes to populate the cells with.</param>
+     * <param name="w">Width of the volume that is being generated.</param>
+     * <param name="d">Depth of the volume that is being generated.</param>
+     * <param name="h">Height of the volume that is being generated.</param>
+     * <param name="propagationDepth">Maximum amount of propagations after a cell is selected and collapsed.</param>
+     * <param name="retryCount">Maximum number of retries to find a valid configuration of prototypes.</param>
+     * <param name="constrainCellsDelagate">Allows for cells with specific constrains to be generated. Passes in the processed list of prototypes to generate cells with and expects a 3d array of cells to be returned.</param>
+     */
+    public static Prototype3D<T>[,,] GenerateRecursiveCollapse3D(IEnumerable<Prototype3D<T>> prototypes, int w, int d, int h, int propagationDepth = -1, int retryCount = -1, Func<IEnumerable<Prototype3D<T>>, Cell[,,]>? constrainCellsDelagate = null)
     {
+        prototypes = CalculatePrototypeNeighbors(prototypes);
+
         int count = 0;
-        // Shuffle Prototypes
-        prototypes = prototypes.OrderBy(_ => _rand.Next()).ToList();
 
-        // Allocate 3D grid of cells
-        Cell[,,] cells = AllocateConstrainedCells(prototypes, w, d, h);
-
-        // Start with truly random cell (Due to constrained cells having lower entropy by default)
-        Cell selectedCell = cells[_rand.Next(w), _rand.Next(d), _rand.Next(h)];
-        selectedCell.CollapseCell();
-        PropagateCollapse(ref cells, selectedCell, propagationDepth, w, d, h, 0);
+        Cell[,,] cells;
+        if (constrainCellsDelagate == null)
+        {
+            cells = AllocateCells(prototypes, w, d, h);
+        }
+        else
+        {
+            cells = constrainCellsDelagate(prototypes);
+        }
 
         while (!IsFinished(cells, w, d, h))
         {
-            if (count >= retryCount) 
+            if (retryCount != -1 && count >= retryCount) 
             {
                 throw new Exception(String.Format("Retry Count Exceeded! Total number of retries: {0}", count));
             }
 
             // Randomly select cell to collapse
-            selectedCell = cells[_rand.Next(w), _rand.Next(d), _rand.Next(h)];
+            Cell selectedCell = cells[_rand.Next(w), _rand.Next(d), _rand.Next(h)];
             while (selectedCell.Entropy == 0)
             {
                 selectedCell = cells[_rand.Next(w), _rand.Next(d), _rand.Next(h)];
@@ -65,19 +79,23 @@ public static class WaveFunctionCollapse
             try
             {
                 selectedCell.CollapseCell();
-                PropagateCollapse(ref cells, selectedCell, propagationDepth, w, d, h, 0);
+                PropagateCollapse3D(ref cells, selectedCell, propagationDepth, w, d, h);
             }
             catch (Exception e)
             {
                 count++;
                 Debug.LogError(e.Message);
-                cells = AllocateConstrainedCells(prototypes, w, d, h);
-                selectedCell = cells[_rand.Next(w), _rand.Next(d), _rand.Next(h)];
-                selectedCell.CollapseCell();
-                PropagateCollapse(ref cells, selectedCell, propagationDepth, w, d, h, 0);
+                if (constrainCellsDelagate == null)
+                {
+                    cells = AllocateCells(prototypes, w, d, h);
+                }
+                else
+                {
+                    cells = constrainCellsDelagate(prototypes);
+                }
             }
         }
-        Prototype[,,] generatedPrototypes = new Prototype[w, d, h];
+        Prototype3D<T>[,,] generatedPrototypes = new Prototype3D<T>[w, d, h];
         for (int x = 0; x < w; x++)
         {
             for (int z = 0; z < d; z++)
@@ -91,30 +109,32 @@ public static class WaveFunctionCollapse
         return generatedPrototypes;
     }
 
-    #region Propagation
-    private static void PropagateCollapse(ref Cell[,,] cells, Cell collapsingCell, int propagationDepth, int w, int d, int h, int count)
+    /*
+     * 
+     */
+    private static void PropagateCollapse3D(ref Cell[,,] cells, Cell collapsingCell, int propagationDepth, int w, int d, int h, int count = 0)
     {
         if (count < propagationDepth || propagationDepth == -1)
         {
             count++;
-            IEnumerable<Prototype> posXComparison = new List<Prototype>();
-            IEnumerable<Prototype> negXComparison = new List<Prototype>();
-            IEnumerable<Prototype> posZComparison = new List<Prototype>();
-            IEnumerable<Prototype> negZComparison = new List<Prototype>();
-            IEnumerable<Prototype> posYComparison = new List<Prototype>();
-            IEnumerable<Prototype> negYComparison = new List<Prototype>();
-            HashSet<Prototype> invalidPrototypes = new();
+            IEnumerable<Prototype3D<T>> posXComparison = new List<Prototype3D<T>>();
+            IEnumerable<Prototype3D<T>> negXComparison = new List<Prototype3D<T>>();
+            IEnumerable<Prototype3D<T>> posZComparison = new List<Prototype3D<T>>();
+            IEnumerable<Prototype3D<T>> negZComparison = new List<Prototype3D<T>>();
+            IEnumerable<Prototype3D<T>> posYComparison = new List<Prototype3D<T>>();
+            IEnumerable<Prototype3D<T>> negYComparison = new List<Prototype3D<T>>();
+            HashSet<Prototype3D<T>> invalidPrototypes = new();
             // positive x
             if (collapsingCell.x + 1 < w)
             {
-                IEnumerable<Prototype> comparison = collapsingCell.ProbablePrototypes.Except(cells[collapsingCell.x + 1, collapsingCell.z, collapsingCell.y].NegXNeighbors);
+                IEnumerable<Prototype3D<T>> comparison = collapsingCell.ProbablePrototypes.Except(cells[collapsingCell.x + 1, collapsingCell.z, collapsingCell.y].NegXNeighbors);
                 invalidPrototypes.UnionWith(comparison);
                 posXComparison = cells[collapsingCell.x + 1, collapsingCell.z, collapsingCell.y].ProbablePrototypes.Except(collapsingCell.PosXNeighbors);
             }
             // negative x
             if (collapsingCell.x - 1 > -1)
             {
-                IEnumerable<Prototype> comparison = collapsingCell.ProbablePrototypes.Except(cells[collapsingCell.x - 1, collapsingCell.z, collapsingCell.y].PosXNeighbors);
+                IEnumerable<Prototype3D<T>> comparison = collapsingCell.ProbablePrototypes.Except(cells[collapsingCell.x - 1, collapsingCell.z, collapsingCell.y].PosXNeighbors);
                 invalidPrototypes.UnionWith(comparison);
                 negXComparison = cells[collapsingCell.x - 1, collapsingCell.z, collapsingCell.y].ProbablePrototypes.Except(collapsingCell.NegXNeighbors);
             }
@@ -122,14 +142,14 @@ public static class WaveFunctionCollapse
             // positive z
             if (collapsingCell.z + 1 < d)
             {
-                IEnumerable<Prototype> comparison = collapsingCell.ProbablePrototypes.Except(cells[collapsingCell.x, collapsingCell.z + 1, collapsingCell.y].NegZNeighbors);
+                IEnumerable<Prototype3D<T>> comparison = collapsingCell.ProbablePrototypes.Except(cells[collapsingCell.x, collapsingCell.z + 1, collapsingCell.y].NegZNeighbors);
                 invalidPrototypes.UnionWith(comparison);
                 posZComparison = cells[collapsingCell.x, collapsingCell.z + 1, collapsingCell.y].ProbablePrototypes.Except(collapsingCell.PosZNeighbors);
             }
             // negative z
             if (collapsingCell.z - 1 > -1)
             {
-                IEnumerable<Prototype> comparison = collapsingCell.ProbablePrototypes.Except(cells[collapsingCell.x, collapsingCell.z - 1, collapsingCell.y].PosZNeighbors);
+                IEnumerable<Prototype3D<T>> comparison = collapsingCell.ProbablePrototypes.Except(cells[collapsingCell.x, collapsingCell.z - 1, collapsingCell.y].PosZNeighbors);
                 invalidPrototypes.UnionWith(comparison);
                 negZComparison = cells[collapsingCell.x, collapsingCell.z - 1, collapsingCell.y].ProbablePrototypes.Except(collapsingCell.NegZNeighbors);
             }
@@ -137,14 +157,14 @@ public static class WaveFunctionCollapse
             // positive y
             if (collapsingCell.y + 1 < h)
             {
-                IEnumerable<Prototype> comparison = collapsingCell.ProbablePrototypes.Except(cells[collapsingCell.x, collapsingCell.z, collapsingCell.y + 1].NegYNeighbors);
+                IEnumerable<Prototype3D<T>> comparison = collapsingCell.ProbablePrototypes.Except(cells[collapsingCell.x, collapsingCell.z, collapsingCell.y + 1].NegYNeighbors);
                 invalidPrototypes.UnionWith(comparison);
                 posYComparison = cells[collapsingCell.x, collapsingCell.z, collapsingCell.y + 1].ProbablePrototypes.Except(collapsingCell.PosYNeighbors);
             }
             // negative y
             if (collapsingCell.y - 1 > -1)
             {
-                IEnumerable<Prototype> comparison = collapsingCell.ProbablePrototypes.Except(cells[collapsingCell.x, collapsingCell.z, collapsingCell.y - 1].PosYNeighbors);
+                IEnumerable<Prototype3D<T>> comparison = collapsingCell.ProbablePrototypes.Except(cells[collapsingCell.x, collapsingCell.z, collapsingCell.y - 1].PosYNeighbors);
                 invalidPrototypes.UnionWith(comparison);
                 negYComparison = cells[collapsingCell.x, collapsingCell.z, collapsingCell.y - 1].ProbablePrototypes.Except(collapsingCell.NegYNeighbors);
 
@@ -157,31 +177,30 @@ public static class WaveFunctionCollapse
 
             if (posXComparison.Any())
             {
-                PropagateCollapse(ref cells, cells[collapsingCell.x + 1, collapsingCell.z, collapsingCell.y], propagationDepth, w, d, h, count);
+                PropagateCollapse3D(ref cells, cells[collapsingCell.x + 1, collapsingCell.z, collapsingCell.y], propagationDepth, w, d, h, count);
             }
             if (negXComparison.Any())
             {
-                PropagateCollapse(ref cells, cells[collapsingCell.x - 1, collapsingCell.z, collapsingCell.y], propagationDepth, w, d, h, count);
+                PropagateCollapse3D(ref cells, cells[collapsingCell.x - 1, collapsingCell.z, collapsingCell.y], propagationDepth, w, d, h, count);
             }
             if (posZComparison.Any())
             {
-                PropagateCollapse(ref cells, cells[collapsingCell.x, collapsingCell.z + 1, collapsingCell.y], propagationDepth, w, d, h, count);
+                PropagateCollapse3D(ref cells, cells[collapsingCell.x, collapsingCell.z + 1, collapsingCell.y], propagationDepth, w, d, h, count);
             }
             if (negZComparison.Any())
             {
-                PropagateCollapse(ref cells, cells[collapsingCell.x, collapsingCell.z - 1, collapsingCell.y], propagationDepth, w, d, h, count);
+                PropagateCollapse3D(ref cells, cells[collapsingCell.x, collapsingCell.z - 1, collapsingCell.y], propagationDepth, w, d, h, count);
             }
             if (posYComparison.Any())
             {
-                PropagateCollapse(ref cells, cells[collapsingCell.x, collapsingCell.z, collapsingCell.y + 1], propagationDepth, w, d, h, count);
+                PropagateCollapse3D(ref cells, cells[collapsingCell.x, collapsingCell.z, collapsingCell.y + 1], propagationDepth, w, d, h, count);
             }
             if (negYComparison.Any())
             {
-                PropagateCollapse(ref cells, cells[collapsingCell.x, collapsingCell.z, collapsingCell.y - 1], propagationDepth, w, d, h, count);
+                PropagateCollapse3D(ref cells, cells[collapsingCell.x, collapsingCell.z, collapsingCell.y - 1], propagationDepth, w, d, h, count);
             }
         }
     }
-    #endregion
 
     private static bool IsFinished(Cell[,,] cells, int w, int d, int h)
     {
@@ -199,7 +218,7 @@ public static class WaveFunctionCollapse
         return true;
     }
 
-    private static Cell[,,] AllocateCells(IEnumerable<Prototype> prototypes, int w, int d, int h)
+    private static Cell[,,] AllocateCells(IEnumerable<Prototype3D<T>> prototypes, int w, int d, int h)
     {
         Cell[,,] cells = new Cell[w, d, h];
 
@@ -216,81 +235,140 @@ public static class WaveFunctionCollapse
         return cells;
     }
 
-    private static Cell[,,] AllocateConstrainedCells(IEnumerable<Prototype> prototypes, int w, int d, int h)
+    private static IEnumerable<Prototype3D<T>> CalculatePrototypeNeighbors(IEnumerable<Prototype3D<T>> prototypes)
     {
-        Cell[,,] cells = new Cell[w, d, h];
-        // fill interior cells with all prototypes except the vertical prototypes
-        for (int x = 1; x < w - 1; x++)
+        // Build Prototype neighbor lists
+        foreach (Prototype3D<T> prototype in prototypes)
         {
-            for (int z = 1; z < d - 1; z++)
+
+            // Clear lists
+            List<Prototype3D<T>> posXNeighbors = new();
+            List<Prototype3D<T>> negXNeighbors = new();
+            List<Prototype3D<T>> posZNeighbors = new();
+            List<Prototype3D<T>> negZNeighbors = new();
+            List<Prototype3D<T>> posYNeighbors = new();
+            List<Prototype3D<T>> negYNeighbors = new();
+
+            foreach (Prototype3D<T> comparer in prototypes)
             {
-                for (int y = 0; y < h - 1; y++)
+                // Positive X to Negative X
+                if (prototype.posX.Contains("F")) // if this prototype is flipped
                 {
-                    cells[x, z, y] = new Cell(prototypes, x, z, y);
+                    if (prototype.posX.Equals(comparer.negX + "F"))
+                        posXNeighbors.Add(comparer);
                 }
+                else if (prototype.posX.Contains("S") || prototype.posX.Contains("-")) // if this prototype is symmetrical
+                {
+                    if (prototype.posX.Equals(comparer.negX))
+                        posXNeighbors.Add(comparer);
+                }
+                else
+                {
+                    if ((prototype.posX + "F").Equals(comparer.negX))
+                        posXNeighbors.Add(comparer);
+                }
+
+                // Negative X to Positive X
+                if (prototype.negX.Contains("F")) // if this prototype is flipped
+                {
+                    if (prototype.negX.Equals(comparer.posX + "F"))
+                        negXNeighbors.Add(comparer);
+                }
+                else if (prototype.negX.Contains("S") || prototype.negX.Contains("-")) // if this prototype is symmetrical
+                {
+                    if (prototype.negX.Equals(comparer.posX))
+                        negXNeighbors.Add(comparer);
+                }
+                else
+                {
+                    if ((prototype.negX + "F").Equals(comparer.posX))
+                        negXNeighbors.Add(comparer);
+                }
+
+                // Positive Z to Negative Z
+                if (prototype.posZ.Contains("F")) // if this prototype is flipped
+                {
+                    if (prototype.posZ.Equals(comparer.negZ + "F"))
+                        posZNeighbors.Add(comparer);
+                }
+                else if (prototype.posZ.Contains("S") || prototype.posZ.Contains("-")) // if this prototype is symmetrical
+                {
+                    if (prototype.posZ.Equals(comparer.negZ))
+                        posZNeighbors.Add(comparer);
+                }
+                else
+                {
+                    if ((prototype.posZ + "F").Equals(comparer.negZ))
+                        posZNeighbors.Add(comparer);
+                }
+
+                // Negative Z to Positive Z
+                if (prototype.negZ.Contains("F")) // if this prototype is flipped
+                {
+                    if (prototype.negZ.Equals(comparer.posZ + "F"))
+                        negZNeighbors.Add(comparer);
+                }
+                else if (prototype.negZ.Contains("S") || prototype.negZ.Contains("-")) // if this prototype is symmetrical
+                {
+                    if (prototype.negZ.Equals(comparer.posZ))
+                        negZNeighbors.Add(comparer);
+                }
+                else
+                {
+                    if ((prototype.negZ + "F").Equals(comparer.posZ))
+                        negZNeighbors.Add(comparer);
+                }
+
+                // Positive Y to Negative Y
+                if (prototype.posY.Equals(comparer.negY))
+                    posYNeighbors.Add(comparer);
+
+                // Negative Y to Positive Y
+                if (prototype.negY.Equals(comparer.posY))
+                    negYNeighbors.Add(comparer);
             }
+            prototype.posXNeighbors = posXNeighbors;
+            prototype.negXNeighbors = negXNeighbors;
+            prototype.posZNeighbors = posZNeighbors;
+            prototype.negZNeighbors = negZNeighbors;
+            prototype.posYNeighbors = posYNeighbors;
+            prototype.negYNeighbors = negYNeighbors;
         }
-        
-        // top cells
-        for (int x = 1; x < w - 1; x++)
-        {
-            for (int z = 1; z < d - 1; z++)
-            {
-                cells[x, z, h - 1] = new Cell(prototypes.Where(proto => proto.posY.Equals("-1")), x, z, h - 1); 
-            }
-        }
-        // side cells
-        for (int y = 0; y < h; y++)
-        {
-            // z faces
-            for (int x = 1; x < w - 1 ; x++)
-            {
-                cells[x, d - 1, y] = new Cell(prototypes.Where(proto => proto.posZ.Equals("-1")), x, d - 1, y);
-                cells[x, 0, y] = new Cell(prototypes.Where(proto => proto.negZ.Equals("-1")), x, 0, y);
-            }
-            // x faces
-            for (int z = 1; z < d - 1; z++)
-            {
-                cells[w - 1, z, y] = new Cell(prototypes.Where(proto => proto.posX.Equals("-1")), w - 1, z, y);
-                cells[0, z, y] = new Cell(prototypes.Where(proto => proto.negX.Equals("-1")), 0, z, y);
-            }
-            // corners
-            cells[w - 1, d - 1, y] = new Cell(prototypes.Where(proto => proto.posX.Equals("-1") && proto.posZ.Equals("-1")), w - 1, d - 1, y);
-            cells[w - 1, 0, y] = new Cell(prototypes.Where(proto => proto.posX.Equals("-1") && proto.negZ.Equals("-1")), w - 1, 0, y);
-            cells[0, 0, y] = new Cell(prototypes.Where(proto => proto.negX.Equals("-1") && proto.negZ.Equals("-1")), 0, 0, y);
-            cells[0, d - 1, y] = new Cell(prototypes.Where(proto => proto.negX.Equals("-1") && proto.posZ.Equals("-1")), 0, d - 1, y);
-        }
-        
-        return cells;
+        return prototypes;
     }
 
     #region Cell
-    private class Cell
+    /**
+     * 
+     */
+    public class Cell
     {
-        private readonly HashSet<Prototype> _probablePrototypes;
-        private readonly HashSet<Prototype> _posXNeighbors = new();
-        private readonly HashSet<Prototype> _negXNeighbors = new();
-        private readonly HashSet<Prototype> _posZNeighbors = new();
-        private readonly HashSet<Prototype> _negZNeighbors = new();
-        private readonly HashSet<Prototype> _posYNeighbors = new();
-        private readonly HashSet<Prototype> _negYNeighbors = new();
-        private Prototype? _collapsedPrototype;
+        private readonly HashSet<Prototype3D<T>> _probablePrototypes;
+        private readonly HashSet<Prototype3D<T>> _posXNeighbors = new();
+        private readonly HashSet<Prototype3D<T>> _negXNeighbors = new();
+        private readonly HashSet<Prototype3D<T>> _posZNeighbors = new();
+        private readonly HashSet<Prototype3D<T>> _negZNeighbors = new();
+        private readonly HashSet<Prototype3D<T>> _posYNeighbors = new();
+        private readonly HashSet<Prototype3D<T>> _negYNeighbors = new();
+        private Prototype3D<T>? _collapsedPrototype;
         private double _entropy;
 
-        public IEnumerable<Prototype> ProbablePrototypes { get { return _probablePrototypes; } }
-        public IEnumerable<Prototype> PosXNeighbors { get { return _posXNeighbors; } }
-        public IEnumerable<Prototype> NegXNeighbors { get { return _negXNeighbors; } }
-        public IEnumerable<Prototype> PosZNeighbors { get { return _posZNeighbors; } }
-        public IEnumerable<Prototype> NegZNeighbors { get { return _negZNeighbors; } }
-        public IEnumerable<Prototype> PosYNeighbors { get { return _posYNeighbors; } }
-        public IEnumerable<Prototype> NegYNeighbors { get { return _negYNeighbors; } }
-        public Prototype? CollapsedPrototype { get { return _collapsedPrototype; } }
+        public IEnumerable<Prototype3D<T>> ProbablePrototypes { get { return _probablePrototypes; } }
+        public IEnumerable<Prototype3D<T>> PosXNeighbors { get { return _posXNeighbors; } }
+        public IEnumerable<Prototype3D<T>> NegXNeighbors { get { return _negXNeighbors; } }
+        public IEnumerable<Prototype3D<T>> PosZNeighbors { get { return _posZNeighbors; } }
+        public IEnumerable<Prototype3D<T>> NegZNeighbors { get { return _negZNeighbors; } }
+        public IEnumerable<Prototype3D<T>> PosYNeighbors { get { return _posYNeighbors; } }
+        public IEnumerable<Prototype3D<T>> NegYNeighbors { get { return _negYNeighbors; } }
+        public Prototype3D<T>? CollapsedPrototype { get { return _collapsedPrototype; } }
         public double Entropy { get { return _entropy; } }
         public readonly int x, z, y;
 
-        public Cell(IEnumerable<Prototype> prototypes, int x_index, int z_index, int y_index)
+        public Cell(IEnumerable<Prototype3D<T>> prototypes, int x_index, int z_index, int y_index)
         {
             _probablePrototypes = new(prototypes);
+            // Shuffle Prototypes. This isn't required, but makes a nicer distribution when randomly selecting a cell
+            _probablePrototypes = _probablePrototypes.OrderBy(_ => _rand.Next()).ToHashSet();
             x = x_index;
             z = z_index;
             y = y_index;
@@ -298,7 +376,7 @@ public static class WaveFunctionCollapse
             RecalculateNeighbors();
         }
 
-        public bool RemoveProbabilities(IEnumerable<Prototype> prototypes)
+        public bool RemoveProbabilities(IEnumerable<Prototype3D<T>> prototypes)
         {
             _probablePrototypes.ExceptWith(prototypes);
             if (_probablePrototypes.Count() == 1)
@@ -325,7 +403,7 @@ public static class WaveFunctionCollapse
                 int totalWeight = _probablePrototypes.Sum(prototype => prototype.weight);
                 int randWeightVal = _rand.Next(totalWeight) + 1;
                 int processedWeight = 0;
-                foreach (Prototype prototype in _probablePrototypes)
+                foreach (Prototype3D<T> prototype in _probablePrototypes)
                 {
                     processedWeight += prototype.weight;
                     if (randWeightVal <= processedWeight)
@@ -338,7 +416,7 @@ public static class WaveFunctionCollapse
             CollapseCell(_probablePrototypes.ElementAt(0));
         }
 
-        public Prototype CollapseCell(Prototype prototype)
+        public Prototype3D<T> CollapseCell(Prototype3D<T> prototype)
         {
             _collapsedPrototype = prototype;
             _probablePrototypes.Clear();
@@ -369,18 +447,18 @@ public static class WaveFunctionCollapse
             _negZNeighbors.Clear();
             _posYNeighbors.Clear();
             _negYNeighbors.Clear();
-            foreach (Prototype prototype in _probablePrototypes)
+            foreach (Prototype3D<T> prototype in _probablePrototypes)
             {
-                prototype.posXNeighbors.ForEach(neighbor => _posXNeighbors.Add(neighbor));
-                prototype.negXNeighbors.ForEach(neighbor => _negXNeighbors.Add(neighbor));
-                prototype.posZNeighbors.ForEach(neighbor => _posZNeighbors.Add(neighbor));
-                prototype.negZNeighbors.ForEach(neighbor => _negZNeighbors.Add(neighbor));
-                prototype.posYNeighbors.ForEach(neighbor => _posYNeighbors.Add(neighbor));
-                prototype.negYNeighbors.ForEach(neighbor => _negYNeighbors.Add(neighbor));
+                foreach (Prototype3D<T> neighbor in prototype.posXNeighbors) { _posXNeighbors.Add(neighbor); }
+                foreach (Prototype3D<T> neighbor in prototype.negXNeighbors) { _negXNeighbors.Add(neighbor); }
+                foreach (Prototype3D<T> neighbor in prototype.posZNeighbors) { _posZNeighbors.Add(neighbor); }
+                foreach (Prototype3D<T> neighbor in prototype.negZNeighbors) { _negZNeighbors.Add(neighbor); }
+                foreach (Prototype3D<T> neighbor in prototype.posYNeighbors) { _posYNeighbors.Add(neighbor); }
+                foreach (Prototype3D<T> neighbor in prototype.negYNeighbors) { _negYNeighbors.Add(neighbor); }
             }
         }
 
-        private void SetNeighbors(Prototype prototype)
+        private void SetNeighbors(Prototype3D<T> prototype)
         {
             _posXNeighbors.Clear();
             _negXNeighbors.Clear();
@@ -388,17 +466,16 @@ public static class WaveFunctionCollapse
             _negZNeighbors.Clear();
             _posYNeighbors.Clear();
             _negYNeighbors.Clear();
-            prototype.posXNeighbors.ForEach(neighbor => _posXNeighbors.Add(neighbor));
-            prototype.negXNeighbors.ForEach(neighbor => _negXNeighbors.Add(neighbor));
-            prototype.posZNeighbors.ForEach(neighbor => _posZNeighbors.Add(neighbor));
-            prototype.negZNeighbors.ForEach(neighbor => _negZNeighbors.Add(neighbor));
-            prototype.posYNeighbors.ForEach(neighbor => _posYNeighbors.Add(neighbor));
-            prototype.negYNeighbors.ForEach(neighbor => _negYNeighbors.Add(neighbor));
+            foreach (Prototype3D<T> neighbor in prototype.posXNeighbors) { _posXNeighbors.Add(neighbor); }
+            foreach (Prototype3D<T> neighbor in prototype.negXNeighbors) { _negXNeighbors.Add(neighbor); }
+            foreach (Prototype3D<T> neighbor in prototype.posZNeighbors) { _posZNeighbors.Add(neighbor); }
+            foreach (Prototype3D<T> neighbor in prototype.negZNeighbors) { _negZNeighbors.Add(neighbor); }
+            foreach (Prototype3D<T> neighbor in prototype.posYNeighbors) { _posYNeighbors.Add(neighbor); }
+            foreach (Prototype3D<T> neighbor in prototype.negYNeighbors) { _negYNeighbors.Add(neighbor); }
         }
     }
     #endregion
 }
-
 
 class InvalidCellException : Exception
 {

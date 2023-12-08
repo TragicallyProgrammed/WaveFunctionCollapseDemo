@@ -1,0 +1,34 @@
+{
+    "name": "Controls",
+    "maps": [
+        {
+            "name": "KeyboardControls",
+            "id": "3b61ee11-b502-46bf-b4f8-6a4d1216f44a",
+            "actions": [
+                {
+                    "name": "PressOnKeyboard",
+                    "type": "Button",
+                    "id": "03b4c21f-b191-443c-8c3d-83fde94747a0",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                }
+            ],
+            "bindings": [
+                {
+                    "name": "",
+                    "id": "7a8acb1b-ff94-455e-b491-133720d08372",
+                    "path": "<Keyboard>/anyKey",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "PressOnKeyboard",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                }
+            ]
+        }
+    ],
+    "controlSchemes": []
+}

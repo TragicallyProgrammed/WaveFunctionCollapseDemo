@@ -9,11 +9,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: aa3ef765706bf4743ab858381eb30391, type: 3}
+  m_Script: {fileID: 11500000, guid: 14bcacd7d5fc4994da1b3de2b1718da4, type: 3}
   m_Name: Corner_Edge_Up_3
   m_EditorClassIdentifier: 
   description: Corner_Edge_Up_3
-  model: {fileID: 2369669763127876176, guid: 08c4d4448b5c9384db7cac913d3b1d03, type: 3}
+  tile: {fileID: 2369669763127876176, guid: 08c4d4448b5c9384db7cac913d3b1d03, type: 3}
   weight: 1
   rotation: 3
   posX: -2
@@ -22,9 +22,3 @@ MonoBehaviour:
   negZ: -2
   posY: v1_3
   negY: -2
-  posXNeighbors: []
-  negXNeighbors: []
-  posZNeighbors: []
-  negZNeighbors: []
-  posYNeighbors: []
-  negYNeighbors: []

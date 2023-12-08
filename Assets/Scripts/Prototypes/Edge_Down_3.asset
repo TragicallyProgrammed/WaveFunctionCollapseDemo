@@ -9,11 +9,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: aa3ef765706bf4743ab858381eb30391, type: 3}
+  m_Script: {fileID: 11500000, guid: 14bcacd7d5fc4994da1b3de2b1718da4, type: 3}
   m_Name: Edge_Down_3
   m_EditorClassIdentifier: 
   description: Edge_Down_3
-  model: {fileID: 6319437045166599093, guid: 4fff67e4447978843a14e5626e14cd67, type: 3}
+  tile: {fileID: 6319437045166599093, guid: 4fff67e4447978843a14e5626e14cd67, type: 3}
   weight: 1
   rotation: 3
   posX: 0S
@@ -22,9 +22,3 @@ MonoBehaviour:
   negZ: 3F
   posY: -1
   negY: v0_3
-  posXNeighbors: []
-  negXNeighbors: []
-  posZNeighbors: []
-  negZNeighbors: []
-  posYNeighbors: []
-  negYNeighbors: []
