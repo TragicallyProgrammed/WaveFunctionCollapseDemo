@@ -76,10 +76,11 @@ public static class WaveFunctionCollapse<T>
             {
                 selectedCell.CollapseCell();
                 PropagateCollapse3D(ref cells, selectedCell, propagationDepth, w, d, h);
+                count++;
             }
             catch (Exception e)
             {
-                count++;
+                //count++;
                 Debug.LogError(e.Message);
                 cells = AllocateCells(prototypes, w, d, h);
                 if (constrainCellsDelegate != null)
@@ -370,9 +371,10 @@ public static class WaveFunctionCollapse<T>
 
         public bool RemoveProbabilities(IEnumerable<Prototype3D<T>> prototypes)
         {
-            HashSet<Prototype3D<T>> currentPrototypes = _probablePrototypes;
-            currentPrototypes.ExceptWith(prototypes);
-            if (currentPrototypes.Count == 0)
+            IEnumerable<Prototype3D<T>> currentPrototypes = _probablePrototypes;
+            HashSet<Prototype3D<T>> currentPrototypesSet = currentPrototypes.ToHashSet();
+            currentPrototypesSet.ExceptWith(prototypes);
+            if (currentPrototypesSet.Count() == 0)
             {
                 throw new InvalidCellException(string.Format("Invalid Cell At Position: x:{0} z:{1} y:{2}", x, z, y));
             }
