@@ -42,10 +42,10 @@ public class WorldManager : MonoBehaviour
     {
         transform.position = new Vector3((float)Width / 2, (float)Height / 2, (float)Depth / 2);
         Prototype3D<Mesh>[,,] generatedPrototypes = new Prototype3D<Mesh>[Width, Depth, Height];
-        await Task.Run(() =>
+        /*await Task.Run(() =>
         {
             _generating = true;
-            generatedPrototypes = WaveFunctionCollapse<Mesh>.GenerateRecursiveCollapse3D(Prototypes, Width, Depth, Height, propagationDepth: PropagationDepth, retryCount: RetryCount, constrainCellsDelegate: (cells, w, d, h) =>
+            generatedPrototypes = WaveFunctionCollapse<Mesh>.GenerateStaticCollapse3D(Prototypes, Width, Depth, Height, propagationDepth: PropagationDepth, retryCount: RetryCount, constrainCellsDelegate: (cells, w, d, h) =>
             {
                 for (int x = 1; x < w - 1; x++)
                 {
@@ -90,7 +90,7 @@ public class WorldManager : MonoBehaviour
                 return cells;
             });
             _generating = false;
-        });
+        });*/
 
         CombineInstance[] combineList = new CombineInstance[Width * Depth * Height];
 
