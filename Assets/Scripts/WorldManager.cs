@@ -20,7 +20,7 @@ public class WorldManager : MonoBehaviour
     [Min(1)]
     public int Height = 1;
 
-    public List<MeshPrototype> Prototypes;
+    public List<Prototype3D> Prototypes;
 
     public delegate void GenerationFinishedEvent();
     public event GenerationFinishedEvent GenerationFinished;
@@ -41,7 +41,7 @@ public class WorldManager : MonoBehaviour
     public async void GenerateTerrain()
     {
         transform.position = new Vector3((float)Width / 2, (float)Height / 2, (float)Depth / 2);
-        Prototype3D<Mesh>[,,] generatedPrototypes = new Prototype3D<Mesh>[Width, Depth, Height];
+        //Prototype3D<Mesh>[,,] generatedPrototypes = new Prototype3D<Mesh>[Width, Depth, Height];
         /*await Task.Run(() =>
         {
             _generating = true;
@@ -90,7 +90,7 @@ public class WorldManager : MonoBehaviour
                 return cells;
             });
             _generating = false;
-        });*/
+        });
 
         CombineInstance[] combineList = new CombineInstance[Width * Depth * Height];
 
@@ -114,7 +114,7 @@ public class WorldManager : MonoBehaviour
         }
         _meshFilter.sharedMesh = new Mesh();
         _meshFilter.sharedMesh.CombineMeshes(combineList);
-
+        */
         if (GenerationFinished != null)
             GenerationFinished();
     }

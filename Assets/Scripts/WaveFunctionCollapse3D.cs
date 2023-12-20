@@ -5,10 +5,9 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-/** TODO: Update
+/**
  * <summary>
- * This static class exists as a container for the functions that execute the wave function collapse algorithm
- * and the Cell class that is used as a container for probable prototypes at any given position.
+ * Class for executing the Wave Function Collapse Algorithm for a 3D volume.
  * 
  * The Algorithm is as follows:
  * <list type="number">
@@ -26,39 +25,76 @@ public class WaveFunctionCollapse3D
     public readonly int Depth;
 
     private readonly System.Random _rand;
-    private readonly IEnumerable<MeshPrototype> _prototypes;
-    private readonly int _flatLength;
+    private readonly IEnumerable<Prototype3D> _prototypes;
 
-    public WaveFunctionCollapse3D(IEnumerable<MeshPrototype> prototypes, int w, int h, int d)
+    /**
+     * <param name="prototypes">Collection of 3D Prototypes to instantiate each cell with.</param>
+     * <param name="w">Width of volume to generate.</param>
+     * <param name="h">Height of volume to generate.</param>
+     * <param name="d">Depth of volume to generate.</param>
+     */
+    public WaveFunctionCollapse3D(IEnumerable<Prototype3D> prototypes, int w, int h, int d)
     {
         _rand = new();
         _prototypes = prototypes;
         Width = w;
         Height = h;
         Depth = d;
-        _flatLength = Width * Height * Depth;
         CalculatePrototypeNeighbors();
     }
 
-    /** TODO: Update
+    /**
      * <summary>
      * Executes the wave function collapse algorithm with recursive propagation.
      * </summary>
-     * <param name="prototypes">List of prototypes to populate the cells with.</param>
-     * <param name="w">Width of the volume that is being generated.</param>
-     * <param name="d">Depth of the volume that is being generated.</param>
-     * <param name="h">Height of the volume that is being generated.</param>
      * <param name="propagationDepth">Maximum amount of propagations after a cell is selected and collapsed.</param>
      * <param name="retryCount">Maximum number of retries to find a valid configuration of prototypes.</param>
-     * <param name="constrainCellsDelegate">Allows for cells with specific constrains to be generated. Passes in the array of unconstrained cells and expects the newly constrained array of cells to be returned.</param>
+     * <param name="constrainCells">Allows for cells with specific constrains to be generated. Passes in the array of unconstrained cells and expects the newly constrained array of cells to be returned where each cell is a List<Prototype3D>[].</param>
      */
-    public Mesh GenerateStaticMesh(int propagationDepth = -1, int retryCount = -1, Func<List<MeshPrototype>[], List<MeshPrototype>[]>? constrainCells = null)
+    public Mesh GenerateStaticMesh(int propagationDepth = -1, int retryCount = -1, Func<List<Prototype3D>[], List<Prototype3D>[]>? constrainCells = null)
     {
-        List<MeshPrototype>[] cells = new List<MeshPrototype>[_flatLength];
+        // Instantiate array for cells and an array to keep track of entropy
+        List<Prototype3D>[] cells = new List<Prototype3D>[Width * Height * Depth];
+        double[] entropyArray = new double[cells.Length];
+        // Instantiate a new list for each element in array
+        for (int i = 0; i < cells.Length; i++)
+        {
+            cells[i] = new(_prototypes);
+        }
+        // Execute contstraints on cells
         if (constrainCells != null)
             cells = constrainCells(cells);
+        // Calculate Entropy for starting cells
+        for (int i = 0; i < entropyArray.Length; i++)
+        {
+            entropyArray[i] = CalculateEntropy(cells[i]);
+        }
+        // Instantiate CombineInstance array for when a cell collapses
+        CombineInstance[] combineList = new CombineInstance[cells.Length];
 
-        CombineInstance[] combineList = new CombineInstance[_flatLength];
+        #region algorithm
+        // Begin WFC algorithm
+        while (!IsFinished(entropyArray))
+        {
+            // Select random cell
+            int selectedIndex = _rand.Next(cells.Length);
+            while (entropyArray[selectedIndex] == 0)
+            {
+                selectedIndex = _rand.Next(cells.Length);
+            }
+            List<Prototype3D> selectedCell = cells[selectedIndex];
+            Prototype3D collapsedPrototype = selectedCell.ElementAt(_rand.Next(selectedCell.Count()));
+            selectedCell.RemoveAll(p => p.description.Equals(collapsedPrototype.description));
+            Stack<int> propagationIndexStack = new Stack<int>();
+            Vector3Int indexVector = Index(selectedIndex);
+            propagationIndexStack.Push(Index(indexVector.x + 1, indexVector.y, indexVector.z));
+            propagationIndexStack.Push(Index(indexVector.x - 1, indexVector.y, indexVector.z));
+            propagationIndexStack.Push(Index(indexVector.x, indexVector.y, indexVector.z + 1));
+            propagationIndexStack.Push(Index(indexVector.x, indexVector.y, indexVector.z - 1));
+            propagationIndexStack.Push(Index(indexVector.x, indexVector.y + 1, indexVector.z));
+            propagationIndexStack.Push(Index(indexVector.x, indexVector.y - 1, indexVector.z));
+        }
+        #endregion
 
         Mesh finalMesh = new Mesh();
         finalMesh.CombineMeshes(combineList);
@@ -68,28 +104,16 @@ public class WaveFunctionCollapse3D
     /*
      * 
      */
-    private void PropagateCollapse3D()
+    private bool IsFinished(double[] entropyArray)
     {
-        
-    }
-
-    /*
-     * 
-     */
-    private bool IsFinished()
-    {
-        return false;
-    }
-
-    /*
-     * 
-     */
-    private void AllocateCells(ref List<MeshPrototype>[] cells)
-    {
-        for (int i = 0; i < _flatLength; i++)
+        for (int i = 0; i < entropyArray.Length; i++)
         {
-            cells[i] = new List<MeshPrototype>(_prototypes);
+            if (entropyArray[i] != 0)
+            {
+                return false;
+            }
         }
+        return true;
     }
 
     /*
@@ -98,18 +122,18 @@ public class WaveFunctionCollapse3D
     private void CalculatePrototypeNeighbors()
     {
         // Build Prototype neighbor lists
-        foreach (MeshPrototype prototype in _prototypes)
+        foreach (Prototype3D prototype in _prototypes)
         {
 
             // Clear lists
-            List<MeshPrototype> posXNeighbors = new();
-            List<MeshPrototype> negXNeighbors = new();
-            List<MeshPrototype> posZNeighbors = new();
-            List<MeshPrototype> negZNeighbors = new();
-            List<MeshPrototype> posYNeighbors = new();
-            List<MeshPrototype> negYNeighbors = new();
+            List<Prototype3D> posXNeighbors = new();
+            List<Prototype3D> negXNeighbors = new();
+            List<Prototype3D> posZNeighbors = new();
+            List<Prototype3D> negZNeighbors = new();
+            List<Prototype3D> posYNeighbors = new();
+            List<Prototype3D> negYNeighbors = new();
 
-            foreach (MeshPrototype comparer in _prototypes)
+            foreach (Prototype3D comparer in _prototypes)
             {
                 // Positive X to Negative X
                 if (prototype.posX.Contains("F")) // if this prototype is flipped
@@ -187,6 +211,7 @@ public class WaveFunctionCollapse3D
                 if (prototype.negY.Equals(comparer.posY))
                     negYNeighbors.Add(comparer);
             }
+
             prototype.posXNeighbors = posXNeighbors;
             prototype.negXNeighbors = negXNeighbors;
             prototype.posZNeighbors = posZNeighbors;
@@ -194,6 +219,12 @@ public class WaveFunctionCollapse3D
             prototype.posYNeighbors = posYNeighbors;
             prototype.negYNeighbors = negYNeighbors;
         }
+    }
+
+    private double CalculateEntropy(IEnumerable<Prototype3D> prototypes)
+    {
+        int totalWeight = prototypes.Sum(prototype => prototype.weight);
+        return Math.Log(totalWeight) - (prototypes.Sum(prototype => prototype.weight * Math.Log(prototype.weight)) / totalWeight);
     }
 
     #region Indexing
@@ -208,13 +239,13 @@ public class WaveFunctionCollapse3D
     /*
      * 
      */
-    public int[] Index(int index)
+    public Vector3Int Index(int index)
     {
         int z = index / (Width * Height);
         index -= z * Width * Height;
         int y = index / Width;
         int x = index % Width;
-        return new int[]{ x, y, z };
+        return new Vector3Int(x, y, z);
     }
     #endregion
 }
